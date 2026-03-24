@@ -121,6 +121,11 @@ func (a *Api) Allow(req authorization.Request) (ar *types.AllowResult) {
 			args = append(args, "resource_value", v)
 		}
 
+		v, ok = r.Msg["denial_detail"]
+		if ok {
+			args = append(args, "denial_detail", v)
+		}
+
 		// Log denials as warnings for visibility
 		slog.Warn("Authorization denied", args...)
 	} else {

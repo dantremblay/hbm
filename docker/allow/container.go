@@ -47,13 +47,14 @@ func ContainerCreate(req authorization.Request, config *types.Config) *types.All
 			vol := strings.Split(b, ":")
 
 			vol[0], _ = filepath.Abs(vol[0])
-			if !AllowVolume(vol[0], config) {
+			if allowed, reason := AllowVolume(vol[0], config); !allowed {
 				return &types.AllowResult{
 					Allow: false,
 					Msg: map[string]string{
 						"text":           fmt.Sprintf("Volume %s is not allowed to be mounted", b),
 						"resource_type":  "volume",
 						"resource_value": b,
+						"denial_detail":  reason,
 					},
 				}
 			}
@@ -347,13 +348,14 @@ func ContainerCreate(req authorization.Request, config *types.Config) *types.All
 		for _, mount := range cc.HostConfig.Mounts {
 			if mount.Type == "bind" {
 				if len(mount.Source) > 0 {
-					if !AllowVolume(mount.Source, config) {
+					if allowed, reason := AllowVolume(mount.Source, config); !allowed {
 						return &types.AllowResult{
 							Allow: false,
 							Msg: map[string]string{
 								"text":           fmt.Sprintf("Volume %s is not allowed to be mounted", mount.Source),
 								"resource_type":  "volume",
 								"resource_value": mount.Source,
+								"denial_detail":  reason,
 							},
 						}
 					}
@@ -417,7 +419,7 @@ func GetPortBindingString(pb *nat.PortBinding) string {
 	return result
 }
 
-func AllowVolume(vol string, config *types.Config) bool {
+func AllowVolume(vol string, config *types.Config) (bool, string) {
 	defer utils.RecoverFunc()
 
 	p, err := policyobj.New("sqlite", config.AppPath)
@@ -427,12 +429,17 @@ func AllowVolume(vol string, config *types.Config) bool {
 	}
 	defer p.End()
 
+	// Remove trailing slash to normalize volume path
+	if len(vol) > 1 {
+		vol = strings.TrimRight(vol, "/")
+	}
+
 	// Check for double dots in volume path
 	if strings.Contains(vol, "/..") {
-		return false
+		return false, "path contains '/..' traversal"
 	}
 	if strings.Contains(vol, "../") {
-		return false
+		return false, "path contains '../' traversal"
 	}
 
 	// evaluatedVol, _ := filepath.EvalSymlinks(vol)
@@ -440,18 +447,18 @@ func AllowVolume(vol string, config *types.Config) bool {
 	// 	return false
 	// }
 
+	nosuid := AllowMount(vol)
+
 	// Check for one volume path
 	vo := objtypes.VolumeOptions{
 		Recursive: false,
-	}
-	if AllowMount(vol) {
-		vo.NoSuid = true
+		NoSuid:    nosuid,
 	}
 	jsonVO := json.Encode(vo)
 	opts := strings.TrimSpace(jsonVO.String())
 
 	if p.Validate(config.Username, "volume", vol, opts) {
-		return true
+		return true, ""
 	}
 
 	// Check for recursive volume path
@@ -473,11 +480,11 @@ func AllowVolume(vol string, config *types.Config) bool {
 		opts = strings.TrimSpace(jsonVO.String())
 
 		if p.Validate(config.Username, "volume", path.Join(val...), opts) {
-			return true
+			return true, ""
 		}
 	}
 
-	return false
+	return false, fmt.Sprintf("no matching policy for volume %s with options %s (nosuid=%v from mount)", vol, opts, nosuid)	
 }
 
 func AllowMount(vol string) bool {
