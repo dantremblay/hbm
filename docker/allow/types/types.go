@@ -1,8 +1,9 @@
 package types
 
 type Config struct {
-	AppPath  string
-	Username string
+	AppPath              string
+	Username             string
+	DisableOwnershipCheck bool
 }
 
 type AllowResult struct {

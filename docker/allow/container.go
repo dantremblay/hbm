@@ -484,7 +484,7 @@ func AllowVolume(vol string, config *types.Config) (bool, string) {
 		}
 	}
 
-	return false, fmt.Sprintf("no matching policy for volume %s with options %s (nosuid=%v from mount)", vol, opts, nosuid)	
+	return false, fmt.Sprintf("no matching policy for volume %s with options %s (nosuid=%v from mount)", vol, opts, nosuid)
 }
 
 func AllowMount(vol string) bool {
