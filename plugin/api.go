@@ -83,10 +83,11 @@ func (a *Api) Allow(req authorization.Request) (ar *types.AllowResult) {
 	}
 
 	// Validate Docker command is allowed
-	config := types.Config{AppPath: a.AppPath, Username: username}
-	r := allow.True(req, &config)
-
 	aR, _ := s.Get("authorization")
+	dOC, _ := s.Get("disable-ownership-check")
+
+	config := types.Config{AppPath: a.AppPath, Username: username, DisableOwnershipCheck: dOC}
+	r := allow.True(req, &config)
 
 	if !isAdmin {
 		if aR {
@@ -119,6 +120,11 @@ func (a *Api) Allow(req authorization.Request) (ar *types.AllowResult) {
 		v, ok = r.Msg["resource_value"]
 		if ok {
 			args = append(args, "resource_value", v)
+		}
+
+		v, ok = r.Msg["denial_detail"]
+		if ok {
+			args = append(args, "denial_detail", v)
 		}
 
 		// Log denials as warnings for visibility

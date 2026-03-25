@@ -81,6 +81,10 @@ func (c *Config) Add(name, rType, rValue string, rOptions []string) error {
 		rValue = i.String()
 	}
 
+	if rType == "volume" && len(rValue) > 1 {
+		rValue = strings.TrimRight(rValue, "/")
+	}
+
 	opts := ""
 	if rType == "volume" {
 		vo := types.VolumeOptions{}

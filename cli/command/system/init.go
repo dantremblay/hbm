@@ -57,9 +57,19 @@ func runInit(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if len(config) == 0 {
-		s.Set("authorization", "false")
-		s.Set("default-allow-action-error", "false")
+	configDefaults := map[string]string{
+		"authorization":              "false",
+		"default-allow-action-error": "false",
+		"disable-ownership-check":    "false",
+	}
+	existing := make(map[string]bool, len(config))
+	for _, c := range config {
+		existing[c.Key] = true
+	}
+	for key, val := range configDefaults {
+		if !existing[key] {
+			s.Set(key, val)
+		}
 	}
 
 	g, err := groupobj.New("sqlite", adf.AppPath)

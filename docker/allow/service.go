@@ -37,13 +37,14 @@ func ServiceCreate(req authorization.Request, config *types.Config) *types.Allow
 			for _, mount := range svc.TaskTemplate.ContainerSpec.Mounts {
 				if mount.Type == "bind" {
 					if len(mount.Source) > 0 {
-						if !AllowVolume(mount.Source, config) {
+						if allowed, reason := AllowVolume(mount.Source, config); !allowed {
 							return &types.AllowResult{
 								Allow: false,
 								Msg: map[string]string{
 									"text":           fmt.Sprintf("Volume %s is not allowed to be mounted", mount.Source),
 									"resource_type":  "volume",
 									"resource_value": mount.Source,
+									"denial_detail":  reason,
 								},
 							}
 						}

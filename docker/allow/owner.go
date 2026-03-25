@@ -1,6 +1,7 @@
 package allow
 
 import (
+        "fmt"
 	"log/slog"
 	"net/url"
 	"os"
@@ -13,7 +14,9 @@ import (
 )
 
 func ContainerOwner(req authorization.Request, config *types.Config) *types.AllowResult {
-	ar := &types.AllowResult{Allow: false}
+	if config.DisableOwnershipCheck {
+		return &types.AllowResult{Allow: true}
+	}
 
 	p, err := policyobj.New("sqlite", config.AppPath)
 	if err != nil {
@@ -24,19 +27,35 @@ func ContainerOwner(req authorization.Request, config *types.Config) *types.Allo
 
 	u, err := url.ParseRequestURI(req.RequestURI)
 	if err != nil {
-		return ar
+		return &types.AllowResult{
+			Allow: false,
+			Msg: map[string]string{
+				"text": fmt.Sprintf("Failed to parse request URI: %s", err),
+			},
+		}
 	}
 
 	ts := strings.Trim(u.Path, "/")
 	up := strings.Split(ts, "/") // api version / type / id
-	if len(up) < 3 {
-		return ar
+	if len(up) < 3 || up[1] != "containers" {
+		return &types.AllowResult{
+			Allow: false,
+			Msg: map[string]string{
+				"text": fmt.Sprintf("Invalid container request URI: %s", u.Path),
+			},
+		}
 	}
-	if up[1] != "containers" {
-		return ar
+	containerID := up[2]
+	if !p.ValidateOwner(config.Username, "containers", containerID) {
+		return &types.AllowResult{
+			Allow: false,
+			Msg: map[string]string{
+				"text":           fmt.Sprintf("Container %s is not owned by user %s", containerID, config.Username),
+				"resource_type":  "container",
+				"resource_value": containerID,
+			},
+		}
 	}
 
-	ar.Allow = p.ValidateOwner(config.Username, "containers", up[2])
-
-	return ar
+	return &types.AllowResult{Allow: true}
 }
