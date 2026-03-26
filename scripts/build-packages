@@ -6,6 +6,8 @@ BASE="scripts/packages"
 
 source $(dirname $0)/version
 
+mkdir -p "${ORIGIN}/dist"
+
 for i in "${BASE}"/*; do
 	echo "build-package: Building ${i}"
 
@@ -21,19 +23,25 @@ for i in "${BASE}"/*; do
 		./prebuild.sh
 	fi
 
-	dapper -d -m cp -f Dockerfile -- ${VERSION} ${RELEASE}
+	DISTRO=$(basename "${i}")
+	IMAGE_NAME="hbm-build-${DISTRO}"
+
+	docker build -t "${IMAGE_NAME}" -f Dockerfile .
+	CONTAINER_ID=$(docker create "${IMAGE_NAME}" ${VERSION} ${RELEASE})
+	docker start -a "${CONTAINER_ID}"
+
 	code=$?
+
+
+	if [ "${code}" == "0" ]; then
+		docker cp "${CONTAINER_ID}:/tmp/dist/." "${ORIGIN}/dist/"
+	fi
+
+	docker rm "${CONTAINER_ID}"
 
 	if [ -d "build" ]; then
 		rm -rf build
 	fi
-
-	if [ "${code}" != "0" ]; then
-		continue
-	fi
-
-	mv dist/* ${ORIGIN}/dist/
-	rmdir dist
 done
 
 echo "build-package: DONE"
