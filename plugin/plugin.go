@@ -1,11 +1,14 @@
 package plugin
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/url"
 	"regexp"
+	"strings"
 
+	"github.com/docker/docker/client"
 	"github.com/docker/go-plugins-helpers/authorization"
 	"github.com/jonasbroms/hbm/pkg/uri"
 	"github.com/jonasbroms/hbm/storage"
@@ -97,12 +100,34 @@ func (p *plugin) setcontainerowner(cname string, req authorization.Request) erro
 		return err
 	}
 
+	if cname == "" {
+		cname, err = p.getContainerName(rjson.Id)
+		if err != nil {
+			slog.Warn("Failed to get container name", "container_id", rjson.Id, "error", err)
+		}
+	}
+
 	s.SetContainerOwner(username, cname, rjson.Id)
 
 	// Audit log for container creation
 	slog.Info("Container ownership recorded", "event_type", "container_ownership", "user", username, "container_name", cname, "container_id", rjson.Id)
 
 	return nil
+}
+
+func (p *plugin) getContainerName(containerID string) (string, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return "", err
+	}
+	defer cli.Close()
+
+	inspect, err := cli.ContainerInspect(context.Background(), containerID)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimPrefix(inspect.Name, "/"), nil
 }
 
 func (p *plugin) AuthZRes(req authorization.Request) authorization.Response {
