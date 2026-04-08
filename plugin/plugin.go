@@ -3,20 +3,23 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 
-	"github.com/docker/docker/client"
 	"github.com/docker/go-plugins-helpers/authorization"
 	"github.com/jonasbroms/hbm/pkg/uri"
 	"github.com/jonasbroms/hbm/storage"
 )
 
 type plugin struct {
-	appPath       string
-	skipEndpoints []*regexp.Regexp
+	appPath            string
+	skipEndpoints      []*regexp.Regexp
+	internalContainers map[string]bool
 }
 
 func stringInRegexpSlice(s string, regexps []*regexp.Regexp) bool {
@@ -36,6 +39,7 @@ func NewPlugin(appPath string) (*plugin, error) {
 			regexp.MustCompile(`^/_ping`),
 			regexp.MustCompile(`^/distribution/(.+)/json`),
 		},
+		internalContainers: make(map[string]bool),
 	}
 
 	return &p, nil
@@ -49,6 +53,15 @@ func (p *plugin) AuthZReq(req authorization.Request) authorization.Response {
 
 	if req.RequestMethod == "OPTIONS" || stringInRegexpSlice(uriinfo.Path, p.skipEndpoints) {
 		return authorization.Response{Allow: true}
+	}
+
+	if req.RequestMethod == "GET" {
+		re := regexp.MustCompile(`^/containers/(.+)/json$`)
+		if m := re.FindStringSubmatch(uriinfo.Path); m != nil {
+			if p.internalContainers[m[1]] {
+				return authorization.Response{Allow: true}
+			}
+		}
 	}
 
 	a, err := NewApi(&uriinfo, p.appPath)
@@ -101,7 +114,9 @@ func (p *plugin) setcontainerowner(cname string, req authorization.Request) erro
 	}
 
 	if cname == "" {
+		p.internalContainers[rjson.Id] = true
 		cname, err = p.getContainerName(rjson.Id)
+		delete(p.internalContainers, rjson.Id)
 		if err != nil {
 			slog.Warn("Failed to get container name", "container_id", rjson.Id, "error", err)
 		}
@@ -116,18 +131,32 @@ func (p *plugin) setcontainerowner(cname string, req authorization.Request) erro
 }
 
 func (p *plugin) getContainerName(containerID string) (string, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	httpc := http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", "/var/run/docker.sock")
+			},
+		},
+	}
+
+	resp, err := httpc.Get(fmt.Sprintf("http://localhost/containers/%s/json", containerID))
 	if err != nil {
 		return "", err
 	}
-	defer cli.Close()
+	defer resp.Body.Close()
 
-	inspect, err := cli.ContainerInspect(context.Background(), containerID)
-	if err != nil {
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("inspect returned status %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Name string `json:"Name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", err
 	}
 
-	return strings.TrimPrefix(inspect.Name, "/"), nil
+	return strings.TrimPrefix(result.Name, "/"), nil
 }
 
 func (p *plugin) AuthZRes(req authorization.Request) authorization.Response {
