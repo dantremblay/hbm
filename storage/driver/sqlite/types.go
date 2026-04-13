@@ -55,3 +55,15 @@ type ContainerOwner struct {
 	UserID      uint
 	ContainerID string `gorm:"unique;"`
 }
+
+type ContainerOwnerHistory struct {
+	Model
+	UserID      uint
+	Username    string
+	ContainerID string
+	RemovedAt   time.Time
+}
+
+func (ContainerOwnerHistory) TableName() string {
+	return "container_owners_history"
+}

@@ -1,7 +1,7 @@
 package allow
 
 import (
-        "fmt"
+	"fmt"
 	"log/slog"
 	"net/url"
 	"os"

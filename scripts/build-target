@@ -20,6 +20,6 @@ cd $(dirname $0)/..
 
 echo "Building ${VERSION} from ${COMMIT} on x86_64"
 
-go build -ldflags "${CONST} ${LDFLAGS}" -o ${OUTPUT}
-strip --strip-all ${OUTPUT}
+go build -ldflags "${CONST} ${LDFLAGS}" -o ${OUTPUT} 2> >(grep -v -E 'warning:|In function|^# ' >&2)
+strip --strip-all ${OUTPUT} 2> >(grep -v -i 'warning' >&2)
 echo "Built ${OUTPUT}"
