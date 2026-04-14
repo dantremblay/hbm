@@ -46,6 +46,8 @@ type Storager interface {
 
 	IsContainerOwner(username, containerid string) bool
 	SetContainerOwner(username, name, containerid string) error
+	RemoveContainerOwner(containerid string)
+	ListContainerOwnerIDs() []string
 
 	End()
 }

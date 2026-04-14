@@ -51,7 +51,21 @@ type Policy struct {
 
 type ContainerOwner struct {
 	Model
-	User        User
-	UserID      uint
-	ContainerID string `gorm:"unique;"`
+	User          User
+	UserID        uint
+	ContainerID   string `gorm:"unique;"`
+	ContainerName string
+}
+
+type ContainerOwnerHistory struct {
+	Model
+	UserID        uint
+	Username      string
+	ContainerID   string
+	ContainerName string
+	RemovedAt     time.Time
+}
+
+func (ContainerOwnerHistory) TableName() string {
+	return "container_owners_history"
 }
