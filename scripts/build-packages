@@ -40,9 +40,14 @@ for i in "${BASE}"/*/; do
 
 	"${DOCKER}" build -t "${IMAGE}" .
 
-	"${DOCKER}" run --rm \
-		-v "${OUTDIR}:/tmp/dist" \
-		"${IMAGE}" "${VERSION}" "${RELEASE}"
+	# Copy artifacts out with `cp` rather than a bind mount: the daemon runs as
+	# root and cannot create mount sources on root-squashed (e.g. NFS) homes.
+	CONTAINER="${IMAGE}-$$"
+	"${DOCKER}" run --name "${CONTAINER}" \
+		"${IMAGE}" "${VERSION}" "${RELEASE}" \
+		|| { "${DOCKER}" rm -f "${CONTAINER}" >/dev/null 2>&1; exit 1; }
+	"${DOCKER}" cp "${CONTAINER}:/tmp/dist/." "${OUTDIR}/"
+	"${DOCKER}" rm -f "${CONTAINER}" >/dev/null
 
 	if [ -d "build" ]; then
 		rm -rf build
