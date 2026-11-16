@@ -3,7 +3,7 @@ FROM docker.io/rockylinux/rockylinux:10
 COPY entrypoint.sh /entrypoint.sh
 COPY build /usr/local/src/hbm
 
-ENV SHELL /bin/bash
+ENV SHELL=/bin/bash
 
 WORKDIR /tmp
 

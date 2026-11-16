@@ -3,8 +3,8 @@ FROM ubuntu:24.04
 COPY entrypoint.sh /entrypoint.sh
 COPY build /usr/local/src/hbm
 
-ENV SHELL /bin/bash
-ENV DEBIAN_FRONTEND noninteractive
+ENV SHELL=/bin/bash
+ENV DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /tmp
 
